@@ -21,7 +21,7 @@ Here's an example from one of these `.json` files:
 
 The corresponding files for these hashes can be found within the `.minecraft/assets/objects/..` folders
 
-This application automates the process of parsing the .json files for all hash values associated with a `.ogg` string, then finds them in the aforementioned objects sub-folders and copies them to your output directory, renaming the file from its hash value to its respective audio name and file extension through simple renaming.
+This application automates the extraction of audio files from Minecraft's game assets. It parses .json files to retrieve all hash values associated with .ogg files, locates these files in corresponding sub-folders within Minecraft's asset directory (assets/objects), and copies them to a specified output directory. During this process, each file is renamed from its hash value to its original audio name and file extension.
 
 <b>Note: As of time of push, this application will try to automatically use the highest numbered .json file within the indexes folder (16.json/17.json) - Utilize the issues section of this resository to report bugs.</b>
 
