@@ -14,7 +14,7 @@ All audio files for Minecraft versions 1.8~ and later have been "hidden" and has
 
 Here's an example from one of these `.json` files:
 ```bash
-"minecraft/sounds/music/game/ancestry.ogg": {"hash": "868c7a7c4d9358d631fa2f9abfc6bbf05d88292d"
+"minecraft/sounds/music/game/ancestry.ogg": {"hash": "868c7a7c4d9358d631fa2f9abfc6bbf05d88292d}",
 ```
 
 The corresponding files for these hashes can be found within the `.minecraft/assets/objects/..` folders
