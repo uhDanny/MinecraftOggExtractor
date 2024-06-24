@@ -36,8 +36,8 @@ root = tk.Tk()
 root.title("Minecraft OGG Extractor")
 
 # Set application icon
-icon = tk.PhotoImage(file="icon.png")
-root.iconphoto(False, icon)
+icon_path = os.path.join(os.path.dirname(__file__), 'icon.ico')
+root.iconbitmap(default=icon_path)
 
 # Function to browse .minecraft folder
 def browse_minecraft_folder():
