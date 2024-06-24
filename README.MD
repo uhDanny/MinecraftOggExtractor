@@ -37,9 +37,9 @@ This application automates the extraction of audio files from Minecraft's game a
 
 - Next, select your desired file formats by checking one or more of the format checkboxes (MP3, FLAC, WAV, Keep Ogg Files). 
 
-- When you are ready, simply just hit start extraction
+- When you are ready, simply just hit the `extract files` button
 
-Please note that .ogg files will be initially extracted if `Keep Ogg Files` is unchecked just to be used for the conversion process, they will be deleted after. 
+Please note that ogg files will be initially extracted regardless of whether `keep ogg files` is checked or not. This checkbox only serves to preserve them alongside alternative formats if specified.
 
 
 ## How to build
