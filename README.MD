@@ -17,7 +17,6 @@ Here's an example from one of these `.json` files:
 "minecraft/sounds/music/game/ancestry.ogg": {"hash": "868c7a7c4d9358d631fa2f9abfc6bbf05d88292d"
 ```
 
-
 The corresponding files for these hashes can be found within the `.minecraft/assets/objects/..` folders
 
 This application automates the process of parsing the .json files for all hash values associated with a `.ogg` string, then finds them in the aforementioned objects sub-folders and copies them to your output directory, renaming the file from its hash value to its respective audio name and file extension through simple renaming.
@@ -56,7 +55,7 @@ Download
 ## How to Compile
 
 1. Ensure `pyinstaller` is installed.
-2. Run 
+2. Run inside repo directory.
    ```bash
    pyinstaller --onefile minecraftoggextractor.py
 3. `exe` will be in the generated newly created `dist` folder in the cloned repo's directory.
