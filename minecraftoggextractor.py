@@ -5,6 +5,7 @@ import json
 import shutil
 from tkinter.ttk import Progressbar
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pydub import AudioSegment
 
 class ToolTip:
@@ -46,14 +47,12 @@ def browse_minecraft_folder():
         minecraft_folder_entry.delete(0, tk.END)
         minecraft_folder_entry.insert(0, folder_path)
 
-
 # Function to browse output folder
 def browse_output_folder():
     folder_path = filedialog.askdirectory()
     if folder_path:
         output_folder_entry.delete(0, tk.END)
         output_folder_entry.insert(0, folder_path)
-
 
 # Function to locate latest #.json file in .minecraft/assets/indexes
 def find_latest_json(minecraft_folder):
@@ -66,7 +65,6 @@ def find_latest_json(minecraft_folder):
     # Get the highest numbered .json file
     latest_json = max(json_files, key=lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else -1)
     return os.path.join(indexes_folder, latest_json)
-
 
 # Function to parse JSON file and extract .ogg entries
 def parse_json(json_file):
@@ -84,14 +82,12 @@ def parse_json(json_file):
         print(f"Error parsing JSON file: {str(e)}")
     return ogg_entries
 
-
 # Function to update console output with automatic scrolling
 def update_console(msg):
     console_text.config(state=tk.NORMAL)
     console_text.insert(tk.END, msg + "\n")
     console_text.see(tk.END)
     console_text.config(state=tk.DISABLED)  # Disable editing of console text
-
 
 def extract_ogg_files():
     minecraft_folder = minecraft_folder_entry.get()
@@ -120,36 +116,56 @@ def extract_ogg_files():
     # Define the objects folder path
     objects_folder = os.path.join(minecraft_folder, "assets", "objects")
 
+    # Disable widgets during extraction
+    toggle_widgets(state=tk.DISABLED)
+    
     # Start the extraction process in a separate thread
     threading.Thread(target=copy_ogg_files,
                      args=(ogg_entries, objects_folder, output_folder, output_ogg_folder)).start()
 
+def toggle_widgets(state=tk.NORMAL):
+    widgets = [
+        browse_minecraft_button,
+        browse_output_button,
+        extract_button,
+        mp3_checkbox,
+        flac_checkbox,
+        wav_checkbox,
+        keep_ogg_checkbox,
+    ]
+    for widget in widgets:
+        widget.config(state=state)
 
 def copy_ogg_files(ogg_entries, objects_folder, output_folder, output_ogg_folder):
     total_files = len(ogg_entries)
     files_copied = 0
 
-    # Always copy ogg files to the temporary ogg folder
-    for root_dir, _, files in os.walk(objects_folder):
-        for file in files:
-            hash_value = os.path.splitext(file)[0]
-            if hash_value in ogg_entries:
-                ogg_filename = ogg_entries[hash_value]
-                src_file = os.path.join(root_dir, file)
-                dst_file = os.path.join(output_ogg_folder, ogg_filename)
-                shutil.copy(src_file, dst_file)
-                update_console(f"Copied: {src_file} -> {dst_file}")
-                files_copied += 1
-                progress_value = int((files_copied / total_files) * 100)
-                progress_bar['value'] = progress_value
-                root.update()  # Update the GUI to reflect progress
+    def copy_file(root_dir, file):
+        nonlocal files_copied
+        hash_value = os.path.splitext(file)[0]
+        if hash_value in ogg_entries:
+            ogg_filename = ogg_entries[hash_value]
+            src_file = os.path.join(root_dir, file)
+            dst_file = os.path.join(output_ogg_folder, ogg_filename)
+            shutil.copy(src_file, dst_file)
+            update_console(f"Copied: {src_file} -> {dst_file}")
+            files_copied += 1
+            progress_value = int((files_copied / total_files) * 100)
+            progress_bar['value'] = progress_value
+            root.update()  # Update the GUI to reflect progress
+
+    with ThreadPoolExecutor() as executor:
+        for root_dir, _, files in os.walk(objects_folder):
+            executor.map(copy_file, [root_dir] * len(files), files)
+
+    # Reset progress bar after initial extraction
+    progress_bar['value'] = 0
 
     # Check if user wants to convert and organize additional formats
     convert_mp3 = mp3_var.get()
     convert_flac = flac_var.get()
     convert_wav = wav_var.get()
 
-    # Convert ogg files if requested
     if convert_mp3 or convert_flac or convert_wav:
         formats_to_convert = []
         if convert_mp3:
@@ -159,41 +175,43 @@ def copy_ogg_files(ogg_entries, objects_folder, output_folder, output_ogg_folder
         if convert_wav:
             formats_to_convert.append("wav")
 
-        # Create directories for each format
         for format_name in formats_to_convert:
             format_folder = os.path.join(output_folder, format_name)
             os.makedirs(format_folder, exist_ok=True)
 
-        progress_value = 0
+        total_conversions = len(formats_to_convert) * total_files
+        conversion_count = 0
+
+        def convert_file(format_name, file):
+            nonlocal conversion_count
+            ogg_filepath = os.path.join(output_ogg_folder, file)
+            audio = AudioSegment.from_file(ogg_filepath, format="ogg")
+            format_folder = os.path.join(output_folder, format_name)
+            converted_file = os.path.splitext(file)[0] + "." + format_name
+            dst_file = os.path.join(format_folder, converted_file)
+            if format_name == "mp3":
+                audio.export(dst_file, format="mp3", bitrate="192k")
+            elif format_name == "flac":
+                audio.export(dst_file, format="flac")
+            elif format_name == "wav":
+                audio.export(dst_file, format="wav")
+            update_console(f"Converted: {ogg_filepath} -> {dst_file}")
+            conversion_count += 1
+            progress_value = int((conversion_count / total_conversions) * 100)
+            progress_bar["value"] = progress_value
+            root.update()
+
         for format_name in formats_to_convert:
-            progress_value = 0
-            # Convert ogg files
-            for file in os.listdir(output_ogg_folder):
-                if file.endswith(".ogg"):
-                    ogg_filepath = os.path.join(output_ogg_folder, file)
-                    audio = AudioSegment.from_file(ogg_filepath, format="ogg")
+            with ThreadPoolExecutor() as executor:
+                executor.map(convert_file, [format_name] * len(os.listdir(output_ogg_folder)), os.listdir(output_ogg_folder))
 
-                    format_folder = os.path.join(output_folder, format_name)
-                    converted_file = os.path.splitext(file)[0] + "." + format_name
-                    dst_file = os.path.join(format_folder, converted_file)
+            progress_bar["value"] = 0
 
-                    # Perform conversion
-                    if format_name == "mp3":
-                        audio.export(dst_file, format="mp3", bitrate="192k")
-                    elif format_name == "flac":
-                        audio.export(dst_file, format="flac")
-                    elif format_name == "wav":
-                        audio.export(dst_file, format="wav")
-
-                    update_console(f"Converted: {ogg_filepath} -> {dst_file}")
-
-                    # Update progress bar during conversion
-                    progress_value += (1 / total_files) * 100
-                    progress_bar["value"] = progress_value
-                    root.update()
+    progress_bar["value"] = 100
+    root.update()
 
     # Optionally delete the original ogg files and its folder after conversion
-    if not keep_ogg_var.get():
+    if (convert_mp3 or convert_flac or convert_wav) and not keep_ogg_var.get():
         for file in os.listdir(output_ogg_folder):
             file_path = os.path.join(output_ogg_folder, file)
             os.remove(file_path)  # Delete the original .ogg files
@@ -205,8 +223,8 @@ def copy_ogg_files(ogg_entries, objects_folder, output_folder, output_ogg_folder
         except OSError:
             pass  # Directory not empty or does not exist
 
+    toggle_widgets(state=tk.NORMAL)
     messagebox.showinfo("Extraction Complete", "Files extracted and converted successfully!")
-
 
 # Function to set minimum size based on content
 def set_minimum_size(event=None):
@@ -214,7 +232,6 @@ def set_minimum_size(event=None):
     min_width = root.winfo_reqwidth()
     min_height = root.winfo_reqheight()
     root.minsize(min_width, min_height)
-
 
 # Call set_minimum_size when the window is resized
 root.bind('<Configure>', set_minimum_size)
@@ -228,28 +245,28 @@ subtitle_label.grid(row=1, column=0, columnspan=4, padx=10, pady=(0, 10), sticky
 
 # Label and Entry for Minecraft Folder
 minecraft_label = tk.Label(root, text="Select .minecraft Folder:")
-minecraft_label.grid(row=2, column=0, padx=10, pady=10, sticky="w")
+minecraft_label.grid(row=2, column=0, padx=10, pady=10, sticky="we")
 
-minecraft_folder_entry = tk.Entry(root, width=50)
+minecraft_folder_entry = tk.Entry(root, width=80)
 minecraft_folder_entry.grid(row=2, column=1, columnspan=2, padx=10, pady=10, sticky="we")
 
 # Browse button for .minecraft folder
 browse_minecraft_button = tk.Button(root, text="Browse", command=browse_minecraft_folder)
-browse_minecraft_button.grid(row=2, column=3, padx=10, pady=10)
+browse_minecraft_button.grid(row=2, column=3, padx=10, pady=10, sticky="nsew")
 
 # Include tooltip for user for .minecraft directory
 ToolTip(browse_minecraft_button, "Select the .minecraft folder located in %APPDATA%/Roaming")
 
 # Label and Entry for Output Directory
 output_label = tk.Label(root, text="Select Output Directory:")
-output_label.grid(row=3, column=0, padx=10, pady=10, sticky="w")
+output_label.grid(row=3, column=0, padx=10, pady=10, sticky="we")
 
-output_folder_entry = tk.Entry(root, width=50)
+output_folder_entry = tk.Entry(root, width=0)
 output_folder_entry.grid(row=3, column=1, columnspan=2, padx=10, pady=10, sticky="we")
 
 # Browse button for output directory
 browse_output_button = tk.Button(root, text="Browse", command=browse_output_folder)
-browse_output_button.grid(row=3, column=3, padx=10, pady=10)
+browse_output_button.grid(row=3, column=3, padx=10, pady=10, sticky="nsew")
 
 # Include tooltip for user for output directory
 ToolTip(browse_output_button, "Select the desired output directory")
@@ -257,21 +274,21 @@ ToolTip(browse_output_button, "Select the desired output directory")
 # Checkboxes for additional formats
 mp3_var = tk.BooleanVar()
 mp3_checkbox = tk.Checkbutton(root, text="MP3", variable=mp3_var)
-mp3_checkbox.grid(row=4, column=0, padx=10, pady=10, sticky="w")
+mp3_checkbox.grid(row=4, column=0, padx=10, pady=10, sticky="nsew")
 
 # Include tooltip for conversion clarification.
 ToolTip(mp3_checkbox, "Convert .ogg files to the .mp3 format.")
 
 flac_var = tk.BooleanVar()
 flac_checkbox = tk.Checkbutton(root, text="FLAC", variable=flac_var)
-flac_checkbox.grid(row=4, column=1, padx=10, pady=10, sticky="w")
+flac_checkbox.grid(row=4, column=1, padx=10, pady=10, sticky="nsew")
 
 # Include tooltip for conversion clarification.
 ToolTip(flac_checkbox, "Convert .ogg files to the .flac format.")
 
 wav_var = tk.BooleanVar()
 wav_checkbox = tk.Checkbutton(root, text="WAV", variable=wav_var)
-wav_checkbox.grid(row=4, column=2, padx=10, pady=10, sticky="w")
+wav_checkbox.grid(row=4, column=2, padx=10, pady=10, sticky="nsew")
 
 # Include tooltip for conversion clarification.
 ToolTip(wav_checkbox, "Convert .ogg files to the .wav format.")
@@ -279,7 +296,7 @@ ToolTip(wav_checkbox, "Convert .ogg files to the .wav format.")
 # Checkbox to keep ogg files
 keep_ogg_var = tk.BooleanVar(value=True)
 keep_ogg_checkbox = tk.Checkbutton(root, text="Keep OGG Files", variable=keep_ogg_var)
-keep_ogg_checkbox.grid(row=4, column=3, padx=10, pady=10, sticky="w")
+keep_ogg_checkbox.grid(row=4, column=3, padx=10, pady=10, sticky="nsew")
 
 # Include tooltip for conversion clarification.
 ToolTip(keep_ogg_checkbox, "If checked, keeps .ogg files. Otherwise, removes .ogg files after conversion if other formats selected.")
@@ -293,13 +310,14 @@ console_text.grid(row=6, column=0, columnspan=4, padx=10, pady=(0, 10), sticky="
 console_text.config(state=tk.DISABLED)  # Start with disabled state for read-only
 
 # Progress Bar
-progress_bar = Progressbar(root, orient=tk.HORIZONTAL, length=300, mode='determinate')
-progress_bar.grid(row=7, column=0, columnspan=4, padx=10, pady=10)
+progress_bar = Progressbar(root, orient=tk.HORIZONTAL, length=500, mode='determinate')
+progress_bar.grid(row=7, column=0, columnspan=4, padx=10, pady=10, sticky="ew")
 
 # Button to start extraction process
 extract_button = tk.Button(root, text="Extract Files", command=extract_ogg_files)
-extract_button.grid(row=8, column=0, columnspan=4, padx=10, pady=(20, 20), sticky="n")
+extract_button.grid(row=8, column=0, columnspan=4, padx=10, pady=(20, 20), sticky="ns")
 
+# Include tooltip for extraction button
 ToolTip(extract_button, "Click to start extraction. Extraction and conversion times may vary, please be patient!")
 
 # Disable button resizing based on its content
@@ -311,7 +329,6 @@ def set_minimum_size(event=None):
     min_width = root.winfo_reqwidth()
     min_height = root.winfo_reqheight()
     root.minsize(min_width, min_height)
-
 
 # Call set_minimum_size when the window is resized
 root.bind('<Configure>', set_minimum_size)
