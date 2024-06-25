@@ -9,6 +9,8 @@ Minecraft OGG Extractor is a tool to extract `.ogg` audio files from Minecraft's
 - Simple auto-scrolling console log and progress bar for extraction/conversion.
 - User-friendly tooltips for guidance.
 
+![Application Image](images/application.png)
+
 ## Information - How it works
 All audio files for Minecraft versions 1.8~ and later have been "hidden" and hashed as entries within a .json file inside the `.minecraft/assets/indexes` folder.
 
