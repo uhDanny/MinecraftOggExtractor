@@ -4,7 +4,7 @@ Minecraft OGG Extractor is a tool to extract `.ogg` audio files from Minecraft's
 
 ## Features
 - Extracts ogg files from Minecraft assets.
-- Convertion options for MP3, FLAC, and WAV formats.
+- Conversion options for MP3, FLAC, and WAV formats.
 - Option to keep or delete the original .ogg files after conversion if desired.
 - Simple auto-scrolling console log and progress bar for extraction/conversion.
 - User-friendly tooltips for guidance.
